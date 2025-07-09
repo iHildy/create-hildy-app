@@ -1,0 +1,6 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Always run `pnpm build` at the end of your response after making your changes.

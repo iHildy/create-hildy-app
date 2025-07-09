@@ -1,0 +1,6 @@
+{
+  "cleanUrls": false,
+  "installCommand": "pnpm install",
+  "buildCommand": "pnpm run deploy",
+  "outputDirectory": ".next/build"
+}
