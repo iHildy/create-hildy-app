@@ -1,6 +1,6 @@
 {
   "cleanUrls": false,
-  "installCommand": "pnpm install",
+  "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm run deploy",
   "outputDirectory": ".next/build"
 }

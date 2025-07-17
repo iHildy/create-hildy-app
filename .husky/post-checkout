@@ -1,0 +1,5 @@
+echo "Reinstalling dependencies with pnpm..."
+pnpm install
+
+echo "Running prisma:generate..."
+pnpm run prisma:generate
