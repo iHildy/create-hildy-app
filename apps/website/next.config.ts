@@ -9,6 +9,7 @@ jiti('./src/lib/env');
 const nextConfig = {
   distDir: process.env.NODE_ENV === "development" ? ".next/dev" : ".next/build",
   allowedDevOrigins: ["localhost:3000", "localhost:80", "*.ngrok.app", "*.ngrok-free.app"],
+  transpilePackages: ["@repo/db"],
   compiler: {
     removeConsole: process.env.VERCEL_ENV === 'production' && {
       exclude: ['error'],

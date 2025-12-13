@@ -1,6 +1,6 @@
 # 🚀 create-hildy-app
 
-An opinionated comprehensive Next.js 15 starter template designed for rapid development with best practices, type safety, and developer experience in mind. Built for teams who want to move fast without breaking things.
+An opinionated comprehensive Next.js 15 monorepo starter template designed for rapid development with best practices, type safety, and developer experience in mind. Built for teams who want to move fast without breaking things.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -18,6 +18,7 @@ An opinionated comprehensive Next.js 15 starter template designed for rapid deve
 - **[tRPC](https://trpc.io/)** for end-to-end type safety between frontend and backend
 - **[React Query](https://tanstack.com/query)** for powerful server state management
 - **[Zod](https://zod.dev/)** for runtime type validation and schema definition
+- **Monorepo Architecture** with pnpm workspaces for scalable code organization
 
 ### 🎨 UI & Styling
 
@@ -68,12 +69,12 @@ cd my-app-name
 pnpm install
 
 # Set up environment variables
-cp .env.example .env
-# Edit .env.local with your database URL and other secrets
+cp apps/website/.env.example apps/website/.env
+# Edit .env with your database URL and other secrets
 
 # Generate Prisma client and run migrations
-pnpm prisma:generate
-pnpm prisma:migrate
+pnpm db:generate
+pnpm db:migrate
 
 # Start development server with Turbopack
 pnpm dev
@@ -84,57 +85,82 @@ Open [http://localhost:3000](http://localhost:3000) to see your application.
 ## 📁 Project Structure
 
 ```
-├── .cursor/                  # Cursor AI rules and configurations
-│   └── rules/               # 16 comprehensive development rules
-├── prisma/                  # Database schema and migrations
-│   ├── migrations/          # Database migration files
-│   └── schema.prisma        # Prisma schema definition
-├── public/                  # Static assets
-├── src/
-│   ├── app/                 # Next.js App Router pages
-│   │   ├── api/trpc/        # tRPC API routes
-│   │   ├── providers/       # React context providers
-│   │   ├── globals.css      # Global styles
-│   │   ├── layout.tsx       # Root layout component
-│   │   └── page.tsx         # Home page
-│   ├── components/          # Reusable UI components
-│   │   └── ui/              # shadcn/ui components
-│   ├── lib/                 # Utility functions and configurations
-│   │   ├── env.ts           # Environment variable validation
-│   │   └── utils.ts         # Common utilities
-│   ├── server/              # Backend logic
-│   │   ├── db.ts            # Database connection
-│   │   ├── index.ts         # tRPC router exports
-│   │   └── trpc.ts          # tRPC configuration
-│   └── types/               # TypeScript type definitions
-├── supabase/                # Supabase configuration
-└── package.json             # Dependencies and scripts
+├── .cursor/                      # Cursor AI rules and configurations
+│   └── rules/                    # 16 comprehensive development rules
+├── apps/
+│   └── website/                  # Next.js web application
+│       ├── public/               # Static assets
+│       ├── src/
+│       │   ├── app/              # Next.js App Router pages
+│       │   │   ├── api/trpc/     # tRPC API routes
+│       │   │   ├── providers/    # React context providers
+│       │   │   ├── globals.css   # Global styles
+│       │   │   ├── layout.tsx    # Root layout component
+│       │   │   └── page.tsx      # Home page
+│       │   ├── components/       # Reusable UI components
+│       │   │   └── ui/           # shadcn/ui components
+│       │   ├── lib/              # Utility functions and configurations
+│       │   │   ├── env.ts        # Environment variable validation
+│       │   │   └── utils.ts      # Common utilities
+│       │   ├── server/           # Backend logic
+│       │   │   ├── db.ts         # Database connection re-export
+│       │   │   ├── index.ts      # tRPC router exports
+│       │   │   └── trpc.ts       # tRPC configuration
+│       │   └── types/            # TypeScript type definitions
+│       ├── next.config.ts        # Next.js configuration
+│       ├── package.json          # Website dependencies
+│       └── tsconfig.json         # TypeScript configuration
+├── packages/
+│   └── db/                       # Shared database package
+│       ├── migrations/           # Prisma migration files
+│       ├── src/
+│       │   ├── client.ts         # Prisma client singleton
+│       │   └── index.ts          # Package exports
+│       ├── schema.prisma         # Prisma schema definition
+│       ├── package.json          # Database package dependencies
+│       └── tsconfig.json         # TypeScript configuration
+├── supabase/                     # Supabase configuration
+├── pnpm-workspace.yaml           # Workspace configuration
+└── package.json                  # Root scripts and dependencies
 ```
+
+## 📦 Workspaces
+
+This monorepo is organized into workspaces:
+
+### Apps (`apps/`)
+
+- **`@repo/website`** - The main Next.js web application
+
+### Packages (`packages/`)
+
+- **`@repo/db`** - Shared Prisma database client and schema
 
 ## 🛠️ Available Scripts
 
 ```bash
 # Development
-pnpm dev                     # Start development server with Turbopack
-pnpm build                   # Build for production
-pnpm start                   # Start production server
-pnpm clean                   # Clean build artifacts and reinstall dependencies
+pnpm dev                         # Start website development server with Turbopack
+pnpm build                       # Build all packages for production
+pnpm start                       # Start production server
+pnpm clean                       # Clean build artifacts and reinstall dependencies
 
-# Database
-pnpm prisma:generate         # Generate Prisma client
-pnpm prisma:migrate          # Run database migrations
-pnpm deploy                  # Production deployment with migrations
+# Database (via @repo/db)
+pnpm db:generate                 # Generate Prisma client
+pnpm db:migrate                  # Run database migrations
+pnpm db:migrate:deploy           # Deploy database migrations (production)
+pnpm db:push                     # Push schema changes without migrations
+pnpm db:studio                   # Open Prisma Studio
 
 # Code Quality
-pnpm lint                    # Run ESLint
-pnpm format                  # Format code with Prettier
-pnpm test                    # Run tests with Vitest
-pnpm test:watch              # Run tests in watch mode
+pnpm lint                        # Run ESLint on website
+pnpm format                      # Format code with Prettier
+pnpm test                        # Run tests with Vitest
+pnpm test:watch                  # Run tests in watch mode
 
 # Infrastructure
-pnpm supabase:start          # Start local Supabase
-pnpm supabase:stop           # Stop local Supabase
-pnpm ngrok:start             # Start ngrok tunnel for localhost:3000
+pnpm supabase:start              # Start local Supabase
+pnpm supabase:stop               # Stop local Supabase
 ```
 
 ## 🎯 Cursor AI Rules
@@ -175,6 +201,7 @@ This starter template was created to address the common pain points of setting u
 
 - **⚡ Zero Configuration** - Everything is pre-configured and ready to use
 - **🛡️ Type Safety First** - End-to-end type safety with TypeScript, Zod, and tRPC
+- **📦 Monorepo Ready** - Scalable architecture with pnpm workspaces
 - **🎨 Beautiful by Default** - Professional UI components with Tailwind and shadcn/ui
 - **🧪 Testing Ready** - Vitest setup with testing utilities and examples
 - **🤖 AI-Optimized** - Comprehensive Cursor rules for AI-assisted development
