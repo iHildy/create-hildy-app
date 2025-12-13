@@ -56,33 +56,33 @@ An opinionated comprehensive Next.js 15 monorepo starter template designed for r
 - Node.js 18+
 - pnpm (recommended package manager)
 - Cloudflare account (for D1 and R2)
-- Wrangler CLI (`pnpm add -g wrangler`)
+- jq (`brew install jq` on macOS)
 
 ### Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/ihildy/create-hildy-app.git my-app-name
-cd my-app-name
+# Use this template on GitHub, then clone your new repo
+git clone https://github.com/YOUR_USERNAME/your-app-name.git
+cd your-app-name
 
-# Install dependencies
-pnpm install
+# Run the interactive setup script
+./scripts/setup.sh
+```
 
-# Set up environment variables
-cp apps/website/.env.example apps/website/.env
-# Edit .env with your values
+The setup script will:
+1. ✅ Detect your app name from the folder
+2. ✅ Log you into Cloudflare (if needed)
+3. ✅ Create a D1 database
+4. ✅ Create an R2 bucket
+5. ✅ Generate a secure BetterAuth secret
+6. ✅ Update all configuration files
+7. ✅ Create your `.env` file
 
-# Create D1 database (requires Cloudflare login)
-wrangler login
-pnpm d1:create
+After setup, add your [D1 API token](https://dash.cloudflare.com/profile/api-tokens) to `apps/website/.env`, then:
 
-# Update wrangler.toml with your database_id
-
-# Push schema to D1
-pnpm db:push
-
-# Start development server with Turbopack
-pnpm dev
+```bash
+pnpm db:push  # Push schema to D1
+pnpm dev      # Start development server
 ```
 
 Open [http://localhost:3000](http://localhost:3000) to see your application.
