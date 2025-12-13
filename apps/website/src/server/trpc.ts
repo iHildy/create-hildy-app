@@ -1,10 +1,10 @@
+import type { CloudflareBindings, CreateContextOptions } from "@/types";
+import type { DbClient } from "@repo/db";
 import { initTRPC } from "@trpc/server";
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
-import { ZodError } from "zod";
-import { db } from "./db";
-import { env } from "@/lib/env";
 import superjson from "superjson";
-import type { CreateContextOptions } from "@/types";
+import { ZodError } from "zod";
+import { createDb } from "./db";
 
 /**
  * 1. CONTEXT
@@ -27,20 +27,38 @@ import type { CreateContextOptions } from "@/types";
 export const createInnerTRPCContext = (opts: CreateContextOptions) => {
   return {
     headers: opts.headers,
-    db,
-    env,
+    db: opts.db,
   };
 };
 
 /**
- * This is the actual context you will use in your router. It will be used to process every request
- * that goes through your tRPC endpoint.
+ * Create tRPC context with Cloudflare bindings
+ * In Cloudflare Workers, bindings are accessed per-request
  *
- * @see https://trpc.io/docs/context
+ * @param opts - Fetch request options
+ * @param bindings - Cloudflare Worker bindings (DB, BUCKET, etc.)
  */
-export const createTRPCContext = (opts: FetchCreateContextFnOptions) => {
+export const createTRPCContext = (
+  opts: FetchCreateContextFnOptions,
+  bindings: CloudflareBindings,
+) => {
+  const db = createDb(bindings.DB);
   return createInnerTRPCContext({
     headers: opts.req.headers,
+    db,
+  });
+};
+
+/**
+ * For local development without Cloudflare bindings
+ * Uses a mock or local D1 instance
+ */
+export const createTRPCContextLocal = (opts: FetchCreateContextFnOptions) => {
+  // In local dev, the D1 binding comes from wrangler
+  // This is a placeholder that will be replaced when running with wrangler dev
+  return createInnerTRPCContext({
+    headers: opts.req.headers,
+    db: {} as DbClient, // Will be replaced by actual binding in runtime
   });
 };
 
@@ -51,7 +69,7 @@ export const createTRPCContext = (opts: FetchCreateContextFnOptions) => {
  * ZodErrors so that you get typesafety on the frontend if your procedure fails due to validation
  * errors on the backend.
  */
-const t = initTRPC.context<typeof createTRPCContext>().create({
+const t = initTRPC.context<ReturnType<typeof createInnerTRPCContext>>().create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
     return {
@@ -77,3 +95,8 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  * @see https://trpc.io/docs/router
  */
 export const createTRPCRouter = t.router;
+
+/**
+ * Public (unauthenticated) procedure
+ */
+export const publicProcedure = t.procedure;

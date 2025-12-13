@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "pnpm --filter @repo/website dev",
     "build": "pnpm db:generate && pnpm --filter @repo/website build",
+    "build:worker": "npx @opennextjs/cloudflare",
     "start": "pnpm --filter @repo/website start",
     "lint": "pnpm --filter @repo/website lint",
     "format": "prettier . --write --ignore-unknown",
@@ -17,19 +18,23 @@
     "test:watch": "vitest --watch",
     "db:generate": "pnpm --filter @repo/db db:generate",
     "db:migrate": "pnpm --filter @repo/db db:migrate",
-    "db:migrate:deploy": "pnpm --filter @repo/db db:migrate:deploy",
     "db:push": "pnpm --filter @repo/db db:push",
     "db:studio": "pnpm --filter @repo/db db:studio",
-    "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop",
-    "supabase:status": "supabase status",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "pnpm build:worker && wrangler deploy",
+    "cf:tail": "wrangler tail",
+    "d1:create": "wrangler d1 create create-hildy-app-db",
+    "d1:migrations": "wrangler d1 migrations apply create-hildy-app-db",
+    "r2:create": "wrangler r2 bucket create create-hildy-app-bucket",
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next pnpm-lock.yaml && pnpm install"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.14.6",
     "husky": "^9.1.7",
     "lint-staged": "^16.1.2",
     "prettier": "3.6.2",
     "typescript": "^5",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.54.0"
   }
 }

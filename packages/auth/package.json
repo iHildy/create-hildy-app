@@ -1,5 +1,5 @@
 {
-  "name": "@repo/db",
+  "name": "@repo/auth",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,25 +11,15 @@
     "./client": {
       "types": "./src/client.ts",
       "default": "./src/client.ts"
-    },
-    "./schema": {
-      "types": "./src/schema.ts",
-      "default": "./src/schema.ts"
     }
   },
-  "scripts": {
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
-  },
   "dependencies": {
-    "drizzle-orm": "^0.45.1"
+    "@repo/db": "workspace:*",
+    "better-auth": "^1.4.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251213.0",
     "@types/node": "^20",
-    "drizzle-kit": "^0.31.8",
     "typescript": "^5"
   }
 }

@@ -1,5 +1,6 @@
-// Re-export everything from Prisma Client
-export * from "@prisma/client";
+// Re-export schema
+export * from "./schema";
 
-// Export the db instance
-export { db } from "./client";
+// Export the db factory and types
+export { createDb } from "./client";
+export type { Database, DbClient } from "./client";

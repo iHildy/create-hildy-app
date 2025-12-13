@@ -3,19 +3,21 @@ import { z } from "zod";
 
 export const env = createEnv({
   server: {
-    // DATABASE_URL: z.string().url("DATABASE_URL must be a valid URL"),
-    // NODE_ENV: z.enum(["development", "production"]),
+    // BetterAuth secret (required for production)
+    BETTER_AUTH_SECRET: z.string().min(32).optional(),
+    BETTER_AUTH_URL: z.string().url().optional(),
+    // Environment
+    ENVIRONMENT: z.enum(["development", "production", "preview"]).optional(),
   },
   client: {
-    // NEXT_PUBLIC_PUBLISHABLE_KEY: z.string().min(1),
+    // Add client-side env vars here
+    // NEXT_PUBLIC_APP_URL: z.string().url(),
   },
-  // If you're using Next.js < 13.4.4, you'll need to specify the runtimeEnv manually
   runtimeEnv: {
     // Server
-    // DATABASE_URL: process.env.DATABASE_URL,
-    // NODE_ENV: process.env.NODE_ENV,
-
+    BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    ENVIRONMENT: process.env.ENVIRONMENT,
     // Client
-    // NEXT_PUBLIC_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_PUBLISHABLE_KEY,
   },
 });

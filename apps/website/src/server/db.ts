@@ -1,2 +1,3 @@
-// Re-export db from the shared @repo/db package
-export { db } from "@repo/db";
+// Re-export createDb factory from the shared @repo/db package
+export { createDb } from "@repo/db";
+export type { DbClient } from "@repo/db";

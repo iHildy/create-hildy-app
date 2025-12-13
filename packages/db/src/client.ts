@@ -1,22 +1,18 @@
-import { PrismaClient } from "@prisma/client";
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "./schema";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+export type Database = ReturnType<typeof createDb>;
 
-export const db =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["query", "error", "warn"]
-        : ["error"],
-    errorFormat: "pretty",
-  });
+/**
+ * Create a Drizzle database instance for Cloudflare D1
+ * @param d1 - The D1 database binding from Cloudflare Workers
+ * @returns Drizzle ORM instance with schema
+ */
+export function createDb(d1: D1Database) {
+  return drizzle(d1, { schema });
+}
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = db;
-
-// Graceful shutdown
-process.on("beforeExit", async () => {
-  await db.$disconnect();
-});
+/**
+ * Type helper for database operations
+ */
+export type DbClient = ReturnType<typeof createDb>;
