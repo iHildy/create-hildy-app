@@ -6,7 +6,6 @@ import { env } from "@/lib/env";
 import superjson from "superjson";
 import type { CreateContextOptions } from "@/types";
 
-
 /**
  * 1. CONTEXT
  *
@@ -78,4 +77,3 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
  * @see https://trpc.io/docs/router
  */
 export const createTRPCRouter = t.router;
-
