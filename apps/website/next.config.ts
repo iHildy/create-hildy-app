@@ -7,6 +7,7 @@ jiti('./src/lib/env');
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ["@repo/db"],
   distDir: process.env.NODE_ENV === "development" ? ".next/dev" : ".next/build",
   allowedDevOrigins: ["localhost:3000", "localhost:80", "*.ngrok.app", "*.ngrok-free.app"],
   compiler: {

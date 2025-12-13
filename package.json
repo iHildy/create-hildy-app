@@ -1,67 +1,21 @@
 {
-  "name": "create-hildy-app",
+  "name": "create-hildy-app-root",
   "version": "0.1.0",
-  "private": false,
-  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,md}\"",
+    "test": "pnpm -r test",
+    "clean": "rm -rf node_modules && pnpm -r clean"
+  },
   "lint-staged": {
     "**/*": "prettier --write --ignore-unknown"
   },
-  "scripts": {
-    "dev": "next dev --turbopack",
-    "ngrok:start": "ngrok http 3000",
-    "start": "next start",
-    "lint": "next lint",
-    "format": "prettier . --write --ignore-unknown",
-    "test": "vitest run",
-    "test:watch": "vitest --watch",
-    "build": "prisma generate && prisma migrate dev && next build --turbo",
-    "build:only": "next build",
-    "deploy": "prisma generate && prisma migrate deploy && next build",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop",
-    "supabase:status": "supabase status",
-    "clean": "rm -rf .next node_modules pnpm-lock.yaml && pnpm install"
-  },
-  "dependencies": {
-    "@prisma/client": "6.11.1",
-    "@radix-ui/react-slot": "^1.2.3",
-    "@t3-oss/env-nextjs": "^0.13.8",
-    "@tanstack/react-query": "^5.81.5",
-    "@tanstack/react-query-devtools": "^5.81.5",
-    "@trpc/client": "^11.4.3",
-    "@trpc/server": "^11.4.3",
-    "@trpc/tanstack-react-query": "^11.4.3",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.525.0",
-    "next": "15.4.8",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "superjson": "^2.2.2",
-    "tailwind-merge": "^3.3.1",
-    "zod": "^3.25.76"
-  },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@tanstack/eslint-plugin-query": "^5.81.2",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.3.5",
-    "eslint-config-prettier": "^10.1.5",
-    "eslint-plugin-prettier": "^5.5.1",
     "husky": "^9.1.7",
-    "jiti": "^1.21.7",
     "lint-staged": "^16.1.2",
-    "prettier": "3.6.2",
-    "prisma": "^6.11.1",
-    "tailwindcss": "^4",
-    "tw-animate-css": "^1.3.5",
-    "typescript": "^5",
-    "vitest": "^3.2.4"
+    "prettier": "3.6.2"
   }
 }
