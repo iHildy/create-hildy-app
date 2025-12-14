@@ -63,6 +63,7 @@ An opinionated comprehensive Next.js 15 monorepo starter template designed for r
 - pnpm (recommended package manager)
 - Cloudflare account (for D1 and R2)
 - jq (`brew install jq` on macOS)
+- GitHub CLI (`brew install gh` on macOS) - optional but recommended
 
 ### Installation
 
@@ -77,12 +78,16 @@ cd your-app-name
 
 The setup script will:
 1. ✅ Detect your app name from the folder
-2. ✅ Log you into Cloudflare (if needed)
-3. ✅ Create a D1 database
-4. ✅ Create an R2 bucket
-5. ✅ Generate a secure BetterAuth secret
-6. ✅ Update all configuration files
-7. ✅ Create your `.env` file
+2. ✅ Set up git repository (remove template origin if needed)
+3. ✅ Log you into Cloudflare and GitHub CLI
+4. ✅ Create a D1 database
+5. ✅ Create an R2 bucket
+6. ✅ Generate a secure BetterAuth secret
+7. ✅ Update all configuration files
+8. ✅ Create your `.env` file
+9. ✅ Optionally create a new GitHub repository
+10. ✅ Set up Slack deploy notifications (via GitHub secret)
+11. ✅ Open Cloudflare Pages dashboard to connect your repo
 
 After setup, add your [D1 API token](https://dash.cloudflare.com/profile/api-tokens) to `apps/website/.env`, then:
 

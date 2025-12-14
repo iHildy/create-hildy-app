@@ -45,6 +45,10 @@ print_error() {
 # Dependency Checks
 # ============================================================================
 
+# Global flags
+GH_AVAILABLE=false
+GITHUB_REPO=""
+
 check_dependencies() {
     print_header "Checking Dependencies"
     
@@ -70,6 +74,16 @@ check_dependencies() {
         exit 1
     fi
     print_success "pnpm is installed"
+    
+    # Check for GitHub CLI (optional but enables extra features)
+    if ! command -v gh &> /dev/null; then
+        print_warning "GitHub CLI (gh) is not installed. Some features will be skipped."
+        echo -e "  Install it with: ${CYAN}brew install gh${NC}"
+        GH_AVAILABLE=false
+    else
+        print_success "GitHub CLI is installed"
+        GH_AVAILABLE=true
+    fi
 }
 
 # ============================================================================
@@ -150,6 +164,163 @@ check_wrangler_auth() {
     fi
     
     print_success "Account ID: ${GREEN}${ACCOUNT_ID:0:8}...${NC}"
+}
+
+# ============================================================================
+# GitHub Authentication & Setup
+# ============================================================================
+
+check_github_auth() {
+    if [ "$GH_AVAILABLE" = false ]; then
+        return
+    fi
+    
+    print_header "GitHub Authentication"
+    
+    if ! gh auth status &> /dev/null; then
+        print_warning "Not logged in to GitHub CLI."
+        echo ""
+        read -p "Would you like to login now? (Y/n): " GH_LOGIN
+        GH_LOGIN=${GH_LOGIN:-Y}
+        
+        if [[ "$GH_LOGIN" =~ ^[Yy]$ ]]; then
+            gh auth login
+        else
+            print_warning "Skipping GitHub features (repo creation, Slack webhook)."
+            GH_AVAILABLE=false
+            return
+        fi
+    fi
+    
+    print_success "Authenticated to GitHub"
+    
+    # Detect repo from git remote
+    if git remote get-url origin &> /dev/null; then
+        ORIGIN_URL=$(git remote get-url origin)
+        GITHUB_REPO=$(echo "$ORIGIN_URL" | sed 's/.*github.com[:/]\(.*\)\.git/\1/' | sed 's/.*github.com[:/]\(.*\)/\1/')
+        
+        if [ -n "$GITHUB_REPO" ]; then
+            print_success "Detected repo: $GITHUB_REPO"
+        fi
+    fi
+}
+
+setup_git_repo() {
+    print_header "Git Repository Setup"
+    
+    if [ -d ".git" ]; then
+        # Check if origin points to the template repo
+        ORIGIN_URL=$(git remote get-url origin 2>/dev/null || echo "")
+        
+        if [[ "$ORIGIN_URL" == *"create-hildy-app"* ]] || [[ "$ORIGIN_URL" == *"iHildy/create-hildy-app"* ]]; then
+            print_warning "Git origin still points to the template repo."
+            echo ""
+            read -p "Remove template origin? (Y/n): " REMOVE_ORIGIN
+            REMOVE_ORIGIN=${REMOVE_ORIGIN:-Y}
+            
+            if [[ "$REMOVE_ORIGIN" =~ ^[Yy]$ ]]; then
+                git remote remove origin
+                print_success "Removed template origin"
+                GITHUB_REPO=""
+            fi
+        else
+            print_success "Git repository already configured"
+        fi
+    else
+        read -p "Initialize a new git repository? (Y/n): " INIT_GIT
+        INIT_GIT=${INIT_GIT:-Y}
+        
+        if [[ "$INIT_GIT" =~ ^[Yy]$ ]]; then
+            git init
+            print_success "Initialized git repository"
+        fi
+    fi
+}
+
+create_github_repo() {
+    if [ "$GH_AVAILABLE" = false ]; then
+        return
+    fi
+    
+    # Check if we already have a remote
+    if git remote get-url origin &> /dev/null; then
+        return
+    fi
+    
+    print_header "GitHub Repository Creation"
+    
+    echo "You don't have a GitHub remote configured."
+    read -p "Create a new GitHub repository for this project? (Y/n): " CREATE_REPO
+    CREATE_REPO=${CREATE_REPO:-Y}
+    
+    if [[ ! "$CREATE_REPO" =~ ^[Yy]$ ]]; then
+        print_step "Skipping GitHub repo creation"
+        return
+    fi
+    
+    echo ""
+    read -p "Repository visibility (public/private) [private]: " VISIBILITY
+    VISIBILITY=${VISIBILITY:-private}
+    
+    print_step "Creating GitHub repository..."
+    
+    if gh repo create "$APP_NAME" --"$VISIBILITY" --source=. --remote=origin; then
+        print_success "Created GitHub repo: $APP_NAME"
+        GITHUB_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+        print_success "Remote set to: $GITHUB_REPO"
+    else
+        print_warning "Failed to create GitHub repo. You can do this manually later."
+    fi
+}
+
+setup_slack_webhook() {
+    if [ "$GH_AVAILABLE" = false ] || [ -z "$GITHUB_REPO" ]; then
+        if [ -z "$GITHUB_REPO" ]; then
+            print_step "Skipping Slack setup (no GitHub remote configured)"
+        fi
+        return
+    fi
+    
+    print_header "Slack Deploy Notifications"
+    
+    echo "This template includes GitHub Actions for Slack deploy notifications."
+    echo "When enabled, you'll get Slack messages on every deploy success/failure."
+    echo ""
+    read -p "Set up Slack notifications now? (y/N): " SETUP_SLACK
+    
+    if [[ ! "$SETUP_SLACK" =~ ^[Yy]$ ]]; then
+        print_step "Skipping Slack setup (you can add the secret later in GitHub settings)"
+        return
+    fi
+    
+    echo ""
+    echo -e "${CYAN}To get a Slack webhook URL:${NC}"
+    echo "  1. Go to https://api.slack.com/apps"
+    echo "  2. Create New App → From scratch"
+    echo "  3. Enable 'Incoming Webhooks' under Features"
+    echo "  4. Click 'Add New Webhook to Workspace'"
+    echo "  5. Choose a channel and copy the webhook URL"
+    echo ""
+    read -p "Paste your Slack webhook URL (or press Enter to skip): " SLACK_WEBHOOK_URL
+    
+    if [ -z "$SLACK_WEBHOOK_URL" ]; then
+        print_step "Skipping (you can add SLACK_WEBHOOK_URL secret in GitHub settings later)"
+        return
+    fi
+    
+    # Validate URL format
+    if [[ ! "$SLACK_WEBHOOK_URL" =~ ^https://hooks\.slack\.com/ ]]; then
+        print_warning "URL doesn't look like a Slack webhook. Skipping."
+        return
+    fi
+    
+    print_step "Setting SLACK_WEBHOOK_URL secret in GitHub..."
+    
+    if echo "$SLACK_WEBHOOK_URL" | gh secret set SLACK_WEBHOOK_URL --repo "$GITHUB_REPO"; then
+        print_success "Slack webhook configured! You'll get notifications on deploys."
+    else
+        print_error "Failed to set secret. You can add it manually in GitHub repo settings."
+    fi
 }
 
 # ============================================================================
@@ -335,6 +506,52 @@ EOF
 }
 
 # ============================================================================
+# Open Setup URLs
+# ============================================================================
+
+open_setup_urls() {
+    print_header "Quick Links"
+    
+    # Open Cloudflare Pages dashboard
+    echo "To connect this repo to Cloudflare Pages for automatic deploys:"
+    echo ""
+    read -p "Open Cloudflare Pages dashboard in browser? (Y/n): " OPEN_CF
+    OPEN_CF=${OPEN_CF:-Y}
+    
+    if [[ "$OPEN_CF" =~ ^[Yy]$ ]]; then
+        if command -v open &> /dev/null; then
+            open "https://dash.cloudflare.com/?to=/:account/pages/new/provider/github"
+            print_success "Opened Cloudflare Pages dashboard"
+        elif command -v xdg-open &> /dev/null; then
+            xdg-open "https://dash.cloudflare.com/?to=/:account/pages/new/provider/github"
+            print_success "Opened Cloudflare Pages dashboard"
+        else
+            echo -e "  ${CYAN}https://dash.cloudflare.com/?to=/:account/pages/new/provider/github${NC}"
+        fi
+    fi
+    
+    echo ""
+    
+    # Open API tokens page
+    echo "To create a D1 API token for database migrations:"
+    echo ""
+    read -p "Open Cloudflare API tokens page in browser? (Y/n): " OPEN_TOKEN
+    OPEN_TOKEN=${OPEN_TOKEN:-Y}
+    
+    if [[ "$OPEN_TOKEN" =~ ^[Yy]$ ]]; then
+        if command -v open &> /dev/null; then
+            open "https://dash.cloudflare.com/profile/api-tokens"
+            print_success "Opened API tokens page"
+        elif command -v xdg-open &> /dev/null; then
+            xdg-open "https://dash.cloudflare.com/profile/api-tokens"
+            print_success "Opened API tokens page"
+        else
+            echo -e "  ${CYAN}https://dash.cloudflare.com/profile/api-tokens${NC}"
+        fi
+    fi
+}
+
+# ============================================================================
 # Final Steps
 # ============================================================================
 
@@ -374,6 +591,9 @@ print_summary() {
     echo -e "${CYAN}Resources created:${NC}"
     echo "  • D1 Database: $DB_NAME ($DATABASE_ID)"
     echo "  • R2 Bucket: $BUCKET_NAME"
+    if [ -n "$GITHUB_REPO" ]; then
+        echo "  • GitHub Repo: $GITHUB_REPO"
+    fi
     echo ""
     echo -e "${CYAN}Files updated:${NC}"
     echo "  • package.json"
@@ -382,8 +602,9 @@ print_summary() {
     echo ""
     echo -e "${CYAN}Next steps:${NC}"
     echo "  1. Add your D1 API token to apps/website/.env"
-    echo "  2. Run: pnpm db:push"
-    echo "  3. Run: pnpm dev"
+    echo "  2. Connect your repo to Cloudflare Pages (if not done)"
+    echo "  3. Run: pnpm db:push"
+    echo "  4. Run: pnpm dev"
     echo ""
     echo -e "Happy coding! 🚀"
 }
@@ -397,15 +618,33 @@ main() {
     echo "This script will set up your Cloudflare resources and configure your app."
     echo ""
     
+    # Check dependencies and detect app info
     check_dependencies
     detect_app_name
+    
+    # Git and GitHub setup
+    setup_git_repo
+    check_github_auth
+    
+    # Cloudflare setup
     check_wrangler_auth
     create_d1_database
     create_r2_bucket
     generate_secrets
+    
+    # Update configuration files
     update_package_json
     update_wrangler_toml
     create_env_file
+    
+    # GitHub repo and integrations
+    create_github_repo
+    setup_slack_webhook
+    
+    # Open helpful URLs
+    open_setup_urls
+    
+    # Final steps
     run_final_steps
     print_summary
 }
