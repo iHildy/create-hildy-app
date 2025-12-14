@@ -168,8 +168,8 @@ create_d1_database() {
             echo ""
             read -p "Enter the existing database ID (or press Enter to skip): " DATABASE_ID
             if [ -z "$DATABASE_ID" ]; then
-                print_error "Database ID is required."
-                exit 1
+                print_warning "Skipping D1 database setup. You will need to configure it manually."
+                return
             fi
             return
         else

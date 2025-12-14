@@ -58,7 +58,13 @@ export const createTRPCContextLocal = (opts: FetchCreateContextFnOptions) => {
   // This is a placeholder that will be replaced when running with wrangler dev
   return createInnerTRPCContext({
     headers: opts.req.headers,
-    db: {} as DbClient, // Will be replaced by actual binding in runtime
+    db: new Proxy({} as DbClient, {
+      get: () => {
+        throw new Error(
+          "Database not initialized in local context. Ensure you are running with 'wrangler dev' or have properly mocked the DB.",
+        );
+      },
+    }),
   });
 };
 
