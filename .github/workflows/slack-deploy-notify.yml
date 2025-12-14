@@ -1,0 +1,52 @@
+name: Slack Deploy Notifications
+
+on:
+  deployment_status:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.event.deployment_status.state == 'success' || github.event.deployment_status.state == 'failure'
+    steps:
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "emoji": true,
+                    "text": "${{ github.event.deployment_status.state == 'success' && '✅ Deploy Succeeded' || '❌ Deploy Failed' }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
+                    { "type": "mrkdwn", "text": "*Environment:*\n${{ github.event.deployment.environment }}" },
+                    { "type": "mrkdwn", "text": "*Branch:*\n${{ github.event.deployment.ref }}" },
+                    { "type": "mrkdwn", "text": "*Commit:*\n`${{ github.event.deployment.sha }}`" }
+                  ]
+                },
+                {
+                  "type": "actions",
+                  "elements": [
+                    {
+                      "type": "button",
+                      "text": { "type": "plain_text", "text": "View Deployment" },
+                      "url": "${{ github.event.deployment_status.target_url }}"
+                    },
+                    {
+                      "type": "button",
+                      "text": { "type": "plain_text", "text": "View Commit" },
+                      "url": "${{ github.event.repository.html_url }}/commit/${{ github.event.deployment.sha }}"
+                    }
+                  ]
+                }
+              ]
+            }

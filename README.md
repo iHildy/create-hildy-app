@@ -46,6 +46,12 @@ An opinionated comprehensive Next.js 15 monorepo starter template designed for r
 - **[Prettier](https://prettier.io/)** for consistent code formatting
 - **[Vitest](https://vitest.dev/)** for fast unit testing
 - **[Husky](https://typicode.github.io/husky/)** for Git hooks and pre-commit checks
+
+### 🔔 Deploy Notifications
+
+- **Slack integration** for deployment success/failure notifications
+- Powered by GitHub Actions and Cloudflare Pages deployment events
+- Just add your `SLACK_WEBHOOK_URL` secret to get started
 - **[lint-staged](https://github.com/lint-staged/lint-staged)** for running linters on staged files
 - **[Wrangler](https://developers.cloudflare.com/workers/wrangler/)** for Cloudflare development and deployment
 
@@ -178,6 +184,21 @@ const { data: session } = useSession();
 import { signOut } from "@repo/auth/client";
 await signOut();
 ```
+
+## 🔔 Slack Deploy Notifications
+
+Get notified in Slack when your Cloudflare Pages deployments succeed or fail.
+
+### Setup
+
+1. Create a [Slack Incoming Webhook](https://api.slack.com/messaging/webhooks)
+2. Add it as a GitHub secret named `SLACK_WEBHOOK_URL`:
+   - Go to your repo → Settings → Secrets and variables → Actions
+   - Click "New repository secret"
+   - Name: `SLACK_WEBHOOK_URL`
+   - Value: Your webhook URL (starts with `https://hooks.slack.com/...`)
+
+That's it! You'll receive Slack messages on every deploy.
 
 ## 📚 Learning Resources
 
