@@ -1,5 +1,4 @@
 import type { CloudflareBindings, CreateContextOptions } from "@/types";
-import type { DbClient } from "@repo/db";
 import { initTRPC } from "@trpc/server";
 import { FetchCreateContextFnOptions } from "@trpc/server/adapters/fetch";
 import superjson from "superjson";
@@ -46,25 +45,6 @@ export const createTRPCContext = (
   return createInnerTRPCContext({
     headers: opts.req.headers,
     db,
-  });
-};
-
-/**
- * For local development without Cloudflare bindings
- * Uses a mock or local D1 instance
- */
-export const createTRPCContextLocal = (opts: FetchCreateContextFnOptions) => {
-  // In local dev, the D1 binding comes from wrangler
-  // This is a placeholder that will be replaced when running with wrangler dev
-  return createInnerTRPCContext({
-    headers: opts.req.headers,
-    db: new Proxy({} as DbClient, {
-      get: () => {
-        throw new Error(
-          "Database not initialized in local context. Ensure you are running with 'wrangler dev' or have properly mocked the DB.",
-        );
-      },
-    }),
   });
 };
 
