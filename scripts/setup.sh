@@ -10,6 +10,10 @@
 
 set -e
 
+# Global status flags
+D1_CREATED=false
+R2_CREATED=false
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -153,17 +157,55 @@ check_wrangler_auth() {
     
     print_success "Logged in to Cloudflare"
     
-    # Extract account ID
-    # The whoami output contains account info, we need to parse it
-    ACCOUNT_ID=$(echo "$WHOAMI_OUTPUT" | grep -oE '[a-f0-9]{32}' | head -1)
+    # Extract all account IDs
+    # We grab all 32-char hex strings
+    ALL_IDS=$(echo "$WHOAMI_OUTPUT" | grep -oE '[a-f0-9]{32}')
     
-    if [ -z "$ACCOUNT_ID" ]; then
+    # Convert newline-separated string to array
+    # usage of tr to ensure spaces for array conversion if needed, but default split on whitespace works
+    ACCOUNT_IDS=($ALL_IDS)
+    ACCOUNT_COUNT=${#ACCOUNT_IDS[@]}
+    
+    if [ "$ACCOUNT_COUNT" -gt 1 ]; then
+        print_warning "Multiple Cloudflare accounts detected."
+        echo "Please select which account you want to use for this project:"
+        echo ""
+        
+        # Get the lines containing IDs to show names/details
+        # We assume the order of IDs in grep -oE matches the order of lines in grep -E
+        ACCOUNT_LINES=$(echo "$WHOAMI_OUTPUT" | grep -E '[a-f0-9]{32}')
+        
+        # Read lines into index-able format
+        i=1
+        while IFS= read -r line; do
+            # strip leading whitespace
+            CLEAN_LINE=$(echo "$line" | sed 's/^[ \t]*//')
+            echo "  $i) $CLEAN_LINE"
+            ((i++))
+        done <<< "$ACCOUNT_LINES"
+        
+        echo ""
+        read -p "Enter number (1-$ACCOUNT_COUNT): " SELECTION
+        
+        # Validate selection
+        if [[ "$SELECTION" =~ ^[0-9]+$ ]] && [ "$SELECTION" -ge 1 ] && [ "$SELECTION" -le "$ACCOUNT_COUNT" ]; then
+            INDEX=$((SELECTION-1))
+            ACCOUNT_ID=${ACCOUNT_IDS[$INDEX]}
+        else
+            print_warning "Invalid selection. Defaulting to first account."
+            ACCOUNT_ID=${ACCOUNT_IDS[0]}
+        fi
+        
+    elif [ "$ACCOUNT_COUNT" -eq 1 ]; then
+        ACCOUNT_ID=${ACCOUNT_IDS[0]}
+    else
         print_warning "Could not auto-detect account ID."
         echo ""
         read -p "Please enter your Cloudflare Account ID: " ACCOUNT_ID
     fi
     
     print_success "Account ID: ${GREEN}${ACCOUNT_ID:0:8}...${NC}"
+    export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"
 }
 
 # ============================================================================
@@ -330,10 +372,18 @@ setup_slack_webhook() {
 create_d1_database() {
     print_header "Creating D1 Database"
     
+    read -p "Setup D1 database? (Y/n): " SETUP_D1
+    SETUP_D1=${SETUP_D1:-Y}
+
+    if [[ ! "$SETUP_D1" =~ ^[Yy]$ ]]; then
+        print_step "Skipping D1 database setup."
+        return
+    fi
+    
     print_step "Creating database: ${CYAN}$DB_NAME${NC}"
     
-    # Create D1 database with JSON output
-    D1_OUTPUT=$(npx wrangler d1 create "$DB_NAME" --json 2>&1) || {
+    # Create D1 database
+    D1_OUTPUT=$(npx wrangler d1 create "$DB_NAME" 2>&1) || {
         if echo "$D1_OUTPUT" | grep -q "already exists"; then
             print_warning "Database '$DB_NAME' already exists."
             echo ""
@@ -350,8 +400,8 @@ create_d1_database() {
         fi
     }
     
-    # Parse the database ID from JSON output
-    DATABASE_ID=$(echo "$D1_OUTPUT" | jq -r '.uuid // .id // empty')
+    # Parse the database ID from output (looking for UUID pattern)
+    DATABASE_ID=$(echo "$D1_OUTPUT" | grep -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' | head -1)
     
     if [ -z "$DATABASE_ID" ]; then
         print_error "Failed to parse database ID from output:"
@@ -360,6 +410,7 @@ create_d1_database() {
     fi
     
     print_success "Database created with ID: ${GREEN}${DATABASE_ID:0:8}...${NC}"
+    D1_CREATED=true
 }
 
 # ============================================================================
@@ -369,20 +420,57 @@ create_d1_database() {
 create_r2_bucket() {
     print_header "Creating R2 Bucket"
     
+    read -p "Setup R2 bucket? (Y/n): " SETUP_R2
+    SETUP_R2=${SETUP_R2:-Y}
+
+    if [[ ! "$SETUP_R2" =~ ^[Yy]$ ]]; then
+        print_step "Skipping R2 bucket setup."
+        return
+    fi
+    
     print_step "Creating bucket: ${CYAN}$BUCKET_NAME${NC}"
     
-    R2_OUTPUT=$(npx wrangler r2 bucket create "$BUCKET_NAME" 2>&1) || {
-        if echo "$R2_OUTPUT" | grep -q "already exists"; then
-            print_warning "Bucket '$BUCKET_NAME' already exists. Continuing..."
-            return
+    while true; do
+        if R2_OUTPUT=$(npx wrangler r2 bucket create "$BUCKET_NAME" 2>&1); then
+            print_success "R2 bucket created successfully"
+            R2_CREATED=true
+            break
         else
+            # Errors occurred
+            if echo "$R2_OUTPUT" | grep -q "already exists"; then
+                print_warning "Bucket '$BUCKET_NAME' already exists. Continuing..."
+                R2_CREATED=true
+                break
+            fi
+            
+            # Check for R2 not enabled (code 10042)
+            if echo "$R2_OUTPUT" | grep -q "10042"; then
+                print_warning "R2 is not enabled on this account."
+                DASH_URL="https://dash.cloudflare.com/$ACCOUNT_ID/r2/overview"
+                echo -e "  Enable it here: ${CYAN}$DASH_URL${NC}"
+                
+                if command -v open &> /dev/null; then
+                    open "$DASH_URL"
+                elif command -v xdg-open &> /dev/null; then
+                    xdg-open "$DASH_URL"
+                fi
+                
+                echo ""
+                read -p "Press Enter to retry after enabling R2 (or type 'n' to skip): " REPLY
+                if [[ "$REPLY" =~ ^[Nn]$ ]]; then
+                    print_warning "Skipping R2 setup."
+                    break
+                fi
+                print_step "Retrying..."
+                continue
+            fi
+            
+            # Fallback for other errors
             print_error "Failed to create R2 bucket:"
             echo "$R2_OUTPUT"
             exit 1
         fi
-    }
-    
-    print_success "R2 bucket created successfully"
+    done
 }
 
 # ============================================================================
@@ -438,12 +526,16 @@ update_wrangler_toml() {
         # Update app name
         sed -i.bak "s/^name = .*/name = \"$APP_NAME\"/" wrangler.toml
         
-        # Update database name and ID
-        sed -i.bak "s/database_name = .*/database_name = \"$DB_NAME\"/" wrangler.toml
-        sed -i.bak "s/database_id = .*/database_id = \"$DATABASE_ID\"/" wrangler.toml
+        if [ "$D1_CREATED" = true ]; then
+            # Update database name and ID
+            sed -i.bak "s/database_name = .*/database_name = \"$DB_NAME\"/" wrangler.toml
+            sed -i.bak "s/database_id = .*/database_id = \"$DATABASE_ID\"/" wrangler.toml
+        fi
         
-        # Update bucket name
-        sed -i.bak "s/bucket_name = .*/bucket_name = \"$BUCKET_NAME\"/" wrangler.toml
+        if [ "$R2_CREATED" = true ]; then
+            # Update bucket name
+            sed -i.bak "s/bucket_name = .*/bucket_name = \"$BUCKET_NAME\"/" wrangler.toml
+        fi
         
         # Remove backup file
         rm -f wrangler.toml.bak
@@ -452,6 +544,25 @@ update_wrangler_toml() {
     else
         print_error "wrangler.toml not found!"
         exit 1
+    fi
+}
+
+update_slack_workflow() {
+    SLACK_WORKFLOW=".github/workflows/slack-deploy-notify.yml"
+    
+    if [ -f "$SLACK_WORKFLOW" ]; then
+        print_step "Updating Slack deploy workflow..."
+        
+        # Update CLOUDFLARE_PROJECT
+        sed -i.bak "s/CLOUDFLARE_PROJECT: .*/CLOUDFLARE_PROJECT: $APP_NAME/" "$SLACK_WORKFLOW"
+        
+        # Update CLOUDFLARE_SUBDOMAIN
+        sed -i.bak "s/CLOUDFLARE_SUBDOMAIN: .*/CLOUDFLARE_SUBDOMAIN: $APP_NAME.workers.dev/" "$SLACK_WORKFLOW"
+        
+        # Remove backup file
+        rm -f "$SLACK_WORKFLOW.bak"
+        
+        print_success "Updated Slack deploy workflow"
     fi
 }
 
@@ -519,14 +630,15 @@ open_setup_urls() {
     OPEN_CF=${OPEN_CF:-Y}
     
     if [[ "$OPEN_CF" =~ ^[Yy]$ ]]; then
+        CF_PAGES_URL="https://dash.cloudflare.com/$ACCOUNT_ID/pages/new/provider/github"
         if command -v open &> /dev/null; then
-            open "https://dash.cloudflare.com/?to=/:account/pages/new/provider/github"
+            open "$CF_PAGES_URL"
             print_success "Opened Cloudflare Pages dashboard"
         elif command -v xdg-open &> /dev/null; then
-            xdg-open "https://dash.cloudflare.com/?to=/:account/pages/new/provider/github"
+            xdg-open "$CF_PAGES_URL"
             print_success "Opened Cloudflare Pages dashboard"
         else
-            echo -e "  ${CYAN}https://dash.cloudflare.com/?to=/:account/pages/new/provider/github${NC}"
+            echo -e "  ${CYAN}$CF_PAGES_URL${NC}"
         fi
     fi
     
@@ -547,6 +659,27 @@ open_setup_urls() {
             print_success "Opened API tokens page"
         else
             echo -e "  ${CYAN}https://dash.cloudflare.com/profile/api-tokens${NC}"
+        fi
+        
+        # Ask for the token if D1 was created
+        if [ "$D1_CREATED" = true ]; then
+            echo ""
+            echo "Once you have created the token, paste it below:"
+            read -p "Cloudflare API Token (press Enter to skip): " CF_TOKEN
+            
+            if [ -n "$CF_TOKEN" ]; then
+                # Update the .env file
+                if [ -f "apps/website/.env" ]; then
+                    # Escape special characters in token if necessary (though usually safe)
+                    sed -i.bak "s|CLOUDFLARE_D1_TOKEN=\"YOUR_D1_API_TOKEN_HERE\"|CLOUDFLARE_D1_TOKEN=\"$CF_TOKEN\"|" apps/website/.env
+                    rm -f apps/website/.env.bak
+                    print_success "Updated apps/website/.env with your API token"
+                else
+                    print_warning "apps/website/.env not found. Could not save token."
+                fi
+            else
+                print_warning "Skipping token configuration."
+            fi
         fi
     fi
 }
@@ -569,17 +702,19 @@ run_final_steps() {
     fi
     
     # Ask if user wants to push schema
-    echo ""
-    print_warning "To push the database schema, you need to add the D1 API token first!"
-    read -p "Push database schema now? (y/N): " PUSH_SCHEMA
-    
-    if [[ "$PUSH_SCHEMA" =~ ^[Yy]$ ]]; then
-        print_step "Pushing schema to D1..."
-        pnpm db:push
-        print_success "Schema pushed to D1"
-    else
+    if [ "$D1_CREATED" = true ]; then
         echo ""
-        echo -e "  Run ${CYAN}pnpm db:push${NC} later after adding your D1 API token."
+        print_warning "To push the database schema, you need to add the D1 API token first!"
+        read -p "Push database schema now? (y/N): " PUSH_SCHEMA
+        
+        if [[ "$PUSH_SCHEMA" =~ ^[Yy]$ ]]; then
+            print_step "Pushing schema to D1..."
+            pnpm db:push
+            print_success "Schema pushed to D1"
+        else
+            echo ""
+            echo -e "  Run ${CYAN}pnpm db:push${NC} later after adding your D1 API token."
+        fi
     fi
 }
 
@@ -589,8 +724,12 @@ print_summary() {
     echo -e "Your app ${GREEN}$APP_NAME${NC} is ready to go!"
     echo ""
     echo -e "${CYAN}Resources created:${NC}"
-    echo "  • D1 Database: $DB_NAME ($DATABASE_ID)"
-    echo "  • R2 Bucket: $BUCKET_NAME"
+    if [ "$D1_CREATED" = true ]; then
+        echo "  • D1 Database: $DB_NAME ($DATABASE_ID)"
+    fi
+    if [ "$R2_CREATED" = true ]; then
+        echo "  • R2 Bucket: $BUCKET_NAME"
+    fi
     if [ -n "$GITHUB_REPO" ]; then
         echo "  • GitHub Repo: $GITHUB_REPO"
     fi
@@ -601,9 +740,13 @@ print_summary() {
     echo "  • apps/website/.env"
     echo ""
     echo -e "${CYAN}Next steps:${NC}"
-    echo "  1. Add your D1 API token to apps/website/.env"
-    echo "  2. Connect your repo to Cloudflare Pages (if not done)"
-    echo "  3. Run: pnpm db:push"
+    if [ "$D1_CREATED" = true ]; then
+        echo "  1. Add your D1 API token to apps/website/.env"
+        echo "  2. Connect your repo to Cloudflare Pages (if not done)"
+        echo "  3. Run: pnpm db:push"
+    else
+        echo "  1. Connect your repo to Cloudflare Pages (if not done)"
+    fi
     echo "  4. Run: pnpm dev"
     echo ""
     echo -e "Happy coding! 🚀"
@@ -635,6 +778,7 @@ main() {
     # Update configuration files
     update_package_json
     update_wrangler_toml
+    update_slack_workflow
     create_env_file
     
     # GitHub repo and integrations

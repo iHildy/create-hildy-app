@@ -26,7 +26,8 @@
     "d1:create": "wrangler d1 create create-hildy-app-db",
     "d1:migrations": "wrangler d1 migrations apply create-hildy-app-db",
     "r2:create": "wrangler r2 bucket create create-hildy-app-bucket",
-    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next pnpm-lock.yaml && pnpm install"
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/.next pnpm-lock.yaml && pnpm install",
+    "setup-script": "./scripts/setup.sh"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.14.6",

@@ -1,13 +1,40 @@
 name: Slack Deploy Notifications
 
 on:
-  deployment_status:
+  check_run:
+    types: [completed]
+
+env:
+  # Configure these for your project
+  CLOUDFLARE_PROJECT: affimind-frontend
+  CLOUDFLARE_SUBDOMAIN: youraffimind.workers.dev
 
 jobs:
   notify:
     runs-on: ubuntu-latest
-    if: github.event.deployment_status.state == 'success' || github.event.deployment_status.state == 'failure'
+    # Only run for Cloudflare Pages check runs that have completed
+    if: |
+      github.event.check_run.app.slug == 'cloudflare-workers-and-pages' &&
+      (github.event.check_run.conclusion == 'success' || github.event.check_run.conclusion == 'failure')
     steps:
+      - name: Get commit message
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMIT_MSG=$(gh api repos/${{ github.repository }}/commits/${{ github.event.check_run.head_sha }} --jq '.commit.message' | head -1)
+          echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+      - name: Build preview URLs
+        id: urls
+        run: |
+          SHORT_SHA="${{ github.event.check_run.head_sha }}"
+          SHORT_SHA="${SHORT_SHA:0:8}"
+          BRANCH="${{ github.event.check_run.check_suite.head_branch }}"
+          echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          echo "commit_preview=https://${SHORT_SHA}-${CLOUDFLARE_PROJECT}.${CLOUDFLARE_SUBDOMAIN}" >> $GITHUB_OUTPUT
+          echo "branch_preview=https://${BRANCH}-${CLOUDFLARE_PROJECT}.${CLOUDFLARE_SUBDOMAIN}" >> $GITHUB_OUTPUT
+
       - name: Send Slack notification
         uses: slackapi/slack-github-action@v2.0.0
         with:
@@ -21,30 +48,44 @@ jobs:
                   "text": {
                     "type": "plain_text",
                     "emoji": true,
-                    "text": "${{ github.event.deployment_status.state == 'success' && '✅ Deploy Succeeded' || '❌ Deploy Failed' }}"
+                    "text": "${{ github.event.check_run.conclusion == 'success' && '✅ Deploy Succeeded' || '❌ Deploy Failed' }}"
+                  }
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "${{ steps.commit.outputs.message }}"
                   }
                 },
                 {
                   "type": "section",
                   "fields": [
                     { "type": "mrkdwn", "text": "*Repository:*\n${{ github.repository }}" },
-                    { "type": "mrkdwn", "text": "*Environment:*\n${{ github.event.deployment.environment }}" },
-                    { "type": "mrkdwn", "text": "*Branch:*\n${{ github.event.deployment.ref }}" },
-                    { "type": "mrkdwn", "text": "*Commit:*\n`${{ github.event.deployment.sha }}`" }
+                    { "type": "mrkdwn", "text": "*Project:*\n${{ github.event.check_run.name }}" },
+                    { "type": "mrkdwn", "text": "*Branch:*\n${{ github.event.check_run.check_suite.head_branch }}" },
+                    { "type": "mrkdwn", "text": "*Commit:*\n`${{ steps.urls.outputs.short_sha }}`" }
                   ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Preview URLs:*\n<${{ steps.urls.outputs.commit_preview }}|Commit Preview> | <${{ steps.urls.outputs.branch_preview }}|Branch Preview>"
+                  }
                 },
                 {
                   "type": "actions",
                   "elements": [
                     {
                       "type": "button",
-                      "text": { "type": "plain_text", "text": "View Deployment" },
-                      "url": "${{ github.event.deployment_status.target_url }}"
+                      "text": { "type": "plain_text", "text": "View Logs" },
+                      "url": "${{ github.event.check_run.details_url }}"
                     },
                     {
                       "type": "button",
                       "text": { "type": "plain_text", "text": "View Commit" },
-                      "url": "${{ github.event.repository.html_url }}/commit/${{ github.event.deployment.sha }}"
+                      "url": "${{ github.event.repository.html_url }}/commit/${{ github.event.check_run.head_sha }}"
                     }
                   ]
                 }
