@@ -4,6 +4,11 @@ on:
   check_run:
     types: [completed]
 
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
 env:
   # Configure these for your project
   CLOUDFLARE_PROJECT: affimind-frontend
